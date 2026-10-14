@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Ontwerp je eigen breipatronen voor een circulaire breimachine met 46 naalden.">
+  <meta name="theme-color" content="#101e2e">
+  <title>StitchLab — Pattern Designer</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="StitchLab startpagina">
+        <span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 44 44" fill="none"><path d="M11 7v30M22 7v30M33 7v30M7 14h30M7 26h30" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="22" cy="26" r="4" fill="currentColor"/></svg></span>
+        <span>STITCH<span class="brand-light">LAB</span><span class="brand-dot">.</span></span>
+      </a>
+      <span class="header-center">DIGITAL KNITTING STUDIO <span class="divider-vertical">/</span> V1.0</span>
+      <div class="header-right"><span class="offline-dot"></span> Lokaal ontwerpen <span class="header-chip">46 naalden</span></div>
+    </header>
+
+    <main class="workspace">
+      <aside class="left-panel panel" aria-label="Tekengereedschap">
+        <div class="eyebrow">01 / WERKRUIMTE</div>
+        <h1>Jouw patroon.<br><span>Jouw ontwerp.</span></h1>
+        <p class="lede">Kleur het raster en maak direct een patroon voor jullie breimachine.</p>
+
+        <div class="panel-divider"></div>
+        <h2>Kleur selecteren</h2>
+        <div class="color-tools" role="group" aria-label="Kleur selecteren">
+          <button class="color-option" id="whiteTool" type="button" aria-pressed="false"><span class="swatch swatch-white"></span><span>Wit</span><kbd>1</kbd></button>
+          <button class="color-option active" id="redTool" type="button" aria-pressed="true"><span class="swatch swatch-red"></span><span>Rood</span><kbd>2</kbd></button>
+        </div>
+        <p class="hint">Klik of sleep over het raster om steken in te kleuren.</p>
+
+        <div class="panel-divider"></div>
+        <h2>Bewerken</h2>
+        <div class="action-stack">
+          <button class="action" id="undoBtn" type="button" title="Ctrl+Z"><span class="action-icon">↶</span> Ongedaan maken <span class="shortcut">Ctrl Z</span></button>
+          <button class="action" id="redoBtn" type="button" title="Ctrl+Y"><span class="action-icon">↷</span> Opnieuw <span class="shortcut">Ctrl Y</span></button>
+          <button class="action" id="mirrorBtn" type="button"><span class="action-icon">⇄</span> Spiegel horizontaal</button>
+          <button class="action" id="clearBtn" type="button"><span class="action-icon">□</span> Raster leegmaken</button>
+        </div>
+
+        <div class="panel-divider"></div>
+        <h2>Patroon importeren</h2>
+        <button class="outline-btn" id="imageBtn" type="button">↥ <span>Afbeelding importeren</span></button>
+        <button class="outline-btn" id="jsonBtn" type="button">↥ <span>Projectbestand openen</span></button>
+        <input type="file" id="imageInput" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+        <input type="file" id="jsonInput" accept="application/json,.json" hidden>
+        <p class="hint">Een afbeelding wordt automatisch vertaald naar wit en rood op een raster van 46 × 40.</p>
+      </aside>
+
+      <section class="editor-panel" aria-label="Patrooneditor">
+        <div class="editor-heading">
+          <div>
+            <div class="eyebrow">02 / PATROONEDITOR</div>
+            <h2>Canvas <span class="edit-count" id="editStatus">— niet opgeslagen</span></h2>
+          </div>
+          <div class="editor-controls">
+            <label class="grid-switch"><input type="checkbox" id="showGrid" checked><span>Rasterlijnen</span></label>
+            <button type="button" id="exampleBtn" class="small-btn">↻ Voorbeeld</button>
+          </div>
+        </div>
+
+        <div class="editor-frame">
+          <div class="ruler-top"><span>NAALDEN</span><span>46 KOLOMMEN</span></div>
+          <div class="canvas-wrap">
+            <canvas id="patternCanvas" width="920" height="800" role="img" aria-label="Tekenraster met 46 kolommen en 40 rijen. Klik of sleep om steken te kleuren."></canvas>
+          </div>
+          <div class="ruler-bottom"><span>↑ Visueel boven / eerste getekende rij</span><span>Onderste rij wordt als eerste gebreid ↓</span></div>
+        </div>
+        <div class="editor-footnote"><span><span class="red-indicator"></span> Rood = 2</span><span><span class="white-indicator"></span> Wit = 1</span><span class="footnote-right" id="cursorStatus">46 × 40 steken</span></div>
+      </section>
+
+      <aside class="right-panel panel" aria-label="Projectinformatie en exporteren">
+        <div class="eyebrow">03 / JOUW PROJECT</div>
+        <h2>Patrooninformatie</h2>
+        <div class="stats-grid">
+          <div class="stat"><div class="stat-caption">Naalden / rij</div><div class="stat-number">46</div></div>
+          <div class="stat"><div class="stat-caption">Aantal rijen</div><div class="stat-number">40</div></div>
+        </div>
+        <div class="counter-row"><span><span class="small-circle red"></span> Rode steken</span><strong id="redCount">0</strong></div>
+        <div class="counter-row"><span><span class="small-circle white"></span> Witte steken</span><strong id="whiteCount">1840</strong></div>
+        <div class="ratio-track"><div id="ratioRed"></div></div>
+        <p class="hint" id="totalCount">1840 steken in totaal</p>
+
+        <div class="panel-divider"></div>
+        <h2>Arduino export</h2>
+        <p class="small-desc">De website zet het raster automatisch om naar het C++-formaat van jullie bestaande code.</p>
+        <div class="code-preview"><div class="code-preview-bar"><span>pattern.h</span><span>ARDUINO C++</span></div><pre id="codePreview" aria-label="Voorbeeld van gegenereerde Arduino-code"></pre></div>
+        <div class="export-buttons">
+          <button class="primary-btn" id="downloadBtn" type="button"><span>↓</span> Download Arduino-code</button>
+          <button class="outline-btn" id="copyBtn" type="button">⧉ <span>Kopieer PATTERN</span></button>
+          <button class="outline-btn" id="saveBtn" type="button">↓ <span>Bewaar project (.json)</span></button>
+        </div>
+        <div class="notice"><span class="notice-symbol">i</span><div><strong>Machinekoppeling volgt later</strong><p>Dit is een eerste versie van de website. Rechtstreeks verzenden naar de Arduino via USB of wifi komt in een volgende fase.</p></div></div>
+      </aside>
+    </main>
+    <footer class="site-footer"><span>STITCHLAB / PRODUCT DEVELOPMENT RESEARCH</span><span>Ontwerp → Patrooncode → Breimachine</span></footer>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
