@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#ffffff">
+<title>StitchLab — Breipatroon Studio</title>
+<meta name="description" content="Ontwerp 2-kleurige breipatronen voor 46 naalden en exporteer Arduino PROGMEM-code.">
+<style>
+:root{
+  font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  color:#192638;background:#f5f6f8;font-synthesis:none;-webkit-font-smoothing:antialiased;
+  --ink:#17263b;--muted:#7b8797;--line:#e8ebef;--red:#e44952;--surface:#fff;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}body{margin:0;min-width:320px}
+button,input{font:inherit}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid #ff9da3;outline-offset:2px}
+button{transition:background .18s,border-color .18s,box-shadow .18s,transform .18s}
+button:active{transform:translateY(1px)}
+.topbar{height:77px;padding:0 clamp(20px,3.5vw,64px);background:#fff;border-bottom:1px solid #ebedf1;display:flex;align-items:center;justify-content:space-between;gap:28px}
+.brand{display:flex;align-items:center;gap:12px;font-weight:900;color:#162437;font-size:21px;letter-spacing:-.8px;white-space:nowrap}
+.brand-square{height:38px;width:38px;background:var(--red);border-radius:11px;display:grid;place-items:center;color:#fff;font-size:23px;letter-spacing:-2px;box-shadow:0 5px 13px #e449522c}
+.brand-accent{color:var(--red)}
+.topnav{margin:auto;display:flex;align-items:center;gap:34px;height:100%}
+.topnav a{text-decoration:none;font-size:13px;font-weight:700;color:#8892a0;height:100%;display:flex;align-items:center;border-bottom:2px solid transparent}
+.topnav a.active{color:#23364b;border-color:var(--red)}
+.topright{display:flex;align-items:center;gap:10px;color:#5a6a7e;letter-spacing:1.4px;font-size:10px;font-weight:800;white-space:nowrap}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#2aaf83;box-shadow:0 0 0 4px #e3f7ed}
+.page{max-width:1820px;margin:0 auto;padding:32px clamp(18px,3.5vw,60px) 45px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:24px;align-items:start}
+.workspace,.sidebar{min-width:0}
+.workspace{display:flex;flex-direction:column;gap:20px}
+.hero{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding:8px 2px 7px}
+.eyebrow{font-size:10px;letter-spacing:2.4px;font-weight:850;color:var(--red);margin-bottom:14px}
+h1{margin:0;color:#15243a;font-size:clamp(31px,3.25vw,45px);line-height:1.08;font-weight:850;letter-spacing:-1.65px}
+.subtitle{color:#7d8b9b;font-size:14px;line-height:1.6;margin:12px 0 0;max-width:580px}
+.count-pill{background:#fff;border:1px solid var(--line);box-shadow:0 3px 11px #1c314009;padding:11px 15px;border-radius:9px;white-space:nowrap;font-weight:750;color:#516176;font-size:12px}
+.count-pill span{color:#192a3e}
+.panel{background:#fff;border:1px solid #e7ebf0;box-shadow:0 5px 18px #23354708;border-radius:15px;overflow:hidden}
+.toolbar{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:15px 18px;flex-wrap:wrap}
+.toolgroup{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.group-label{font-size:10px;font-weight:850;letter-spacing:1.65px;color:#8b97a8;margin-right:4px}
+.tool-color,.btn{border:1px solid #e4e7ed;background:#fff;color:#35455b;font-size:12px;font-weight:750;min-height:39px;padding:9px 13px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
+.tool-color:hover,.btn:hover{background:#fafbfc;border-color:#b4becb}
+.tool-color.selected{border-color:#e44952;background:#fff3f4;color:#a72b35;box-shadow:0 0 0 2px #fff5f5 inset}
+.swatch{height:16px;width:16px;border-radius:5px;border:1px solid #d8dee5;display:inline-block}
+.swatch.white{background:#fff}.swatch.red{background:#e84c54;border-color:#dd434b}
+.btn.primary{background:var(--red);color:#fff;border-color:var(--red);box-shadow:0 4px 11px #e4495228}
+.btn.primary:hover{background:#cf303b;border-color:#cf303b}
+.btn.subtle{color:#7f8a97}
+.canvas-shell{overflow:hidden}
+.canvas-title{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff;border-bottom:1px solid #eef0f3}
+.canvas-title strong{font-size:13px;color:#23364c;letter-spacing:-.1px}
+.canvas-title span{font-size:12px;color:#8792a0}
+.canvas-scroll{padding:22px;max-height:calc(100vh - 390px);min-height:360px;overflow:auto;background:radial-gradient(circle,#e1e6eb 0.8px,transparent .8px) 0 0/19px 19px,#fbfcfd}
+#patternCanvas{display:block;width:920px;max-width:none;height:auto;touch-action:none;cursor:crosshair;border:1px solid #dce2e9;box-shadow:0 8px 24px #2034450b;image-rendering:pixelated;background:white}
+.canvas-bottom{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;background:#fff;border-top:1px solid #edf0f3;padding:15px 20px;font-size:11px;color:#8a97a6}
+.canvas-bottom strong{color:#526176}
+.below-canvas{padding:0 3px;display:flex;align-items:center;justify-content:space-between;gap:15px;color:#8894a4;font-size:12px;flex-wrap:wrap}
+.below-canvas strong{color:#24364a}
+.tip{background:#fff;border:1px dashed #e0e5ec;border-radius:11px;padding:17px 19px;display:flex;gap:12px;align-items:flex-start;color:#8290a1;font-size:12px;line-height:1.65}
+.tip strong{color:#2b3e53}.tip-icon{height:25px;width:25px;display:grid;place-items:center;flex:none;background:#fff5e5;color:#ba8125;border-radius:7px;font-weight:900}
+.sidebar{display:flex;flex-direction:column;gap:17px}
+.side-section{padding:24px 22px 22px;overflow:hidden}
+.sidebar .eyebrow{margin-bottom:12px}h2{font-size:17px;line-height:1.3;letter-spacing:-.35px;margin:0 0 18px;color:#1d3045}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stat{position:relative;background:#f7f8fa;border:1px solid #e7ebef;border-radius:11px;padding:17px 14px;min-height:115px}
+.stat label{display:block;color:#8593a3;font-size:11px;margin-bottom:12px}
+.stat-value,.stat-input{color:#1b2b40;font-size:33px;font-weight:850;line-height:1.1;letter-spacing:-1px}
+.stat-input{width:95%;padding:0;background:transparent;border:0;outline-offset:4px;appearance:textfield}
+.stat-input::-webkit-outer-spin-button,.stat-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.edit-symbol{font-weight:600;color:var(--red)}
+.stepper{display:flex;gap:4px;position:absolute;right:9px;bottom:12px}
+.stepper button{height:26px;width:26px;background:#fff;color:#56667a;border:1px solid #dde3e9;border-radius:6px;font-size:17px;font-weight:650;line-height:1}
+.stepper button:hover{background:#f0f4f7}
+.hint{font-size:12px;color:#8290a1;line-height:1.6;margin:15px 0 0}
+.hint code{font-size:11px;background:#f3f5f7;padding:2px 4px;border-radius:3px;color:#526278}
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pill{color:#b3343d;background:#fff1f2;border-radius:20px;padding:5px 8px;font-weight:750;font-size:10px;white-space:nowrap}
+.code-top{display:flex;justify-content:space-between;gap:9px;background:#293b4f;padding:10px 12px;border-radius:9px 9px 0 0;color:#b9c9d8;font-size:10px;font-weight:750}
+.code-preview{height:265px;overflow:auto;margin:0;background:#142235;border:1px solid #293b4f;border-top:0;color:#cfe0f0;padding:15px 13px;font-size:10.5px;line-height:1.65;font-family:Consolas,Monaco,'SFMono-Regular',monospace;white-space:pre;border-radius:0 0 9px 9px}
+.export-actions{display:flex;gap:9px;margin-top:13px}
+.export-actions .btn{flex:1;min-width:0}
+.micro-hint{color:#929eac;font-size:10.5px;line-height:1.6;margin:12px 0 0}
+.status{font-size:12px;line-height:1.5;background:#f0f6fd;color:#52708e;border:1px solid #dbeaf6;padding:13px 16px;border-radius:10px}
+.status.error{background:#fff3f2;border-color:#f5d1cc;color:#aa453e}.status.success{background:#f0fbf5;border-color:#cdebdc;color:#267451}
+.footer{font-size:11px;color:#a4acb6;display:flex;justify-content:space-between;gap:12px;margin-top:23px;padding:0 2px}
+@media(max-width:1150px){.layout{grid-template-columns:minmax(0,1fr) 330px}.page{padding:25px 22px 35px}.canvas-scroll{padding:15px}}
+@media(max-width:940px){.layout{display:flex;flex-direction:column}.sidebar{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.sidebar .status{grid-column:1/-1}.canvas-scroll{max-height:540px}.topnav{display:none}.hero{padding-top:3px}}
+@media(max-width:640px){.page{padding:16px 13px 25px}.topbar{height:66px;padding:0 17px}.topright{font-size:9px}.brand{font-size:17px}.brand-square{width:32px;height:32px;font-size:18px}.hero{display:block}.hero h1{font-size:31px}.count-pill{display:inline-block;margin-top:15px}.toolbar{padding:13px}.toolgroup{width:100%}.toolgroup:last-child{justify-content:space-between}.toolgroup:last-child .btn{flex:1}.canvas-title{padding:14px}.canvas-scroll{min-height:330px;max-height:470px;padding:8px}.canvas-bottom{padding:11px 13px}.sidebar{display:flex;flex-direction:column;gap:13px}.side-section{padding:20px 16px}.footer{flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><div class="brand-square">S</div><div>STITCH<span class="brand-accent">LAB</span></div></div>
+  <nav class="topnav" aria-label="Navigatie"><a class="active" href="#ontwerp">Ontwerpen</a><a href="#instellingen">Instellingen</a><a href="#export">Arduino-code</a></nav>
+  <div class="topright"><span class="dot"></span> BREIPATROON STUDIO &nbsp;·&nbsp; 46 NAALDEN</div>
+</header>
+<div class="page">
+<div class="layout">
+  <main class="workspace" id="ontwerp">
+    <div class="hero">
+      <div>
+        <div class="eyebrow">01 / ONTWERP JE PATROON</div>
+        <h1>Maak jouw breipatroon<span style="color:#e44952">.</span></h1>
+        <p class="subtitle">Van tekening naar breimachine. Kleur de steken zelf in of upload een afbeelding en exporteer meteen je Arduino-code.</p>
+      </div>
+      <div class="count-pill"><span id="gridDimensions">46 × 40</span> steken</div>
+    </div>
+    <section class="toolbar panel" aria-label="Tekengereedschap">
+      <div class="toolgroup">
+        <span class="group-label">KLEUR</span>
+        <button type="button" id="whiteTool" class="tool-color" aria-pressed="false"><span class="swatch white"></span> Wit · 1</button>
+        <button type="button" id="redTool" class="tool-color selected" aria-pressed="true"><span class="swatch red"></span> Rood · 2</button>
+      </div>
+      <div class="toolgroup">
+        <button type="button" id="uploadImageButton" class="btn">↑ Afbeelding</button>
+        <button type="button" id="uploadPatternButton" class="btn">↑ .h patroon</button>
+        <button type="button" id="clearButton" class="btn subtle">Wissen</button>
+      </div>
+    </section>
+    <input type="file" id="imageInput" accept="image/*" hidden>
+    <input type="file" id="patternInput" accept=".h,.txt,text/plain" hidden>
+    <section class="canvas-shell panel">
+      <div class="canvas-title"><strong>✦ &nbsp; Tekenraster</strong><span id="canvasLabel">46 naalden × 40 rijen</span></div>
+      <div class="canvas-scroll"><canvas id="patternCanvas" aria-label="Breipatroon raster, klik en sleep om steken in te kleuren"></canvas></div>
+      <div class="canvas-bottom"><span>↑ <strong>Bovenkant</strong> van je tekening</span><span><strong>Onderste rij</strong> wordt eerst gebreid ↓</span></div>
+    </section>
+    <div class="below-canvas"><span id="cursorStatus" aria-live="polite">Klik en sleep om in het raster te tekenen.</span><span>Patroon: <strong id="rowInfo">40</strong> rijen × 46 naalden</span></div>
+    <div class="tip"><span class="tip-icon">i</span><div><strong>Goed om te weten</strong> — de tekening staat rechtop, maar je breimachine begint onderaan. StitchLab zet iedere rij automatisch om naar de juiste volgorde voor Arduino (van rechts naar links).</div></div>
+  </main>
+  <aside class="sidebar">
+    <section class="side-section panel" id="instellingen">
+      <div class="eyebrow">02 / JOUW PROJECT</div>
+      <h2>Patrooninformatie</h2>
+      <div class="stats-grid">
+        <div class="stat"><label>Naalden / rij</label><div class="stat-value">46</div></div>
+        <div class="stat stat-editable"><label for="rowsInput">Aantal rijen <span class="edit-symbol">✎</span></label><input id="rowsInput" class="stat-input" type="number" min="1" max="200" step="1" value="40" inputmode="numeric" aria-label="Aantal rijen"><div class="stepper"><button type="button" id="minusRow" aria-label="Eén rij minder">−</button><button type="button" id="plusRow" aria-label="Eén rij meer">+</button></div></div>
+      </div>
+      <p class="hint">Verander het aantal rijen: de tekening en de Arduino-export passen zich direct aan. Toegevoegde rijen komen bovenaan.</p>
+    </section>
+    <section class="side-section panel" id="export">
+      <div class="eyebrow">03 / ARDUINO OUTPUT</div>
+      <div class="section-head"><h2>Code voor je breimachine</h2><span class="pill">PROGMEM</span></div>
+      <p class="hint" style="margin:-7px 0 17px">Vervang hiermee alleen het bestaande <code>PATTERN_ROWS</code> + <code>PATTERN</code>-blok in je Arduino-sketch.</p>
+      <div class="code-top"><span>Arduino C++</span><span id="codeRowsLabel">40 rijen</span></div>
+      <pre class="code-preview"><code id="codeOutput"></code></pre>
+      <div class="export-actions"><button type="button" id="copyCodeButton" class="btn primary">Kopieer code</button><button type="button" id="downloadButton" class="btn">Download .h</button></div>
+      <p class="micro-hint">Elke rij bevat exact 46 tekens: 1 = wit, 2 = rood. Eerste Arduino-rij = onderste beeldrij, van rechts naar links.</p>
+    </section>
+    <div class="status" id="statusMessage" aria-live="polite">✓ Klaar om te ontwerpen. Pas de rijen aan of upload je patroon.</div>
+  </aside>
+</div>
+<footer class="footer"><span>STITCHLAB · BREIPATROON STUDIO</span><span>Gemaakt voor jouw Arduino Uno · 2 kleuren · 46 naalden</span></footer>
+</div>
+<script>'use strict';
+
+// StitchLab — de visuele matrix wordt van boven naar beneden getekend.
+// Arduino-output is juist andersom: onderaan eerst en elke rij rechts -> links.
+const NEEDLES = 46;
+const MIN_ROWS = 1;
+const MAX_ROWS = 200;
+const CELL = 20;
+
+let rowCount = 40;
+let grid = newGrid(rowCount);
+let paintColor = 2;
+let pointerDown = false;
+let sourceImage = null;
+let sourceImageName = '';
+
+const byId = id => document.getElementById(id);
+const canvas = byId('patternCanvas');
+const ctx = canvas.getContext('2d', { willReadFrequently: false });
+const rowsInput = byId('rowsInput');
+
+function newGrid(rows) {
+  return Array.from({ length: rows }, () => Array(NEEDLES).fill(1));
+}
+
+function notify(message, kind = '') {
+  const status = byId('statusMessage');
+  status.textContent = message;
+  status.className = 'status' + (kind ? ' ' + kind : '');
+}
+
+function updateLabels() {
+  byId('gridDimensions').textContent = `${NEEDLES} × ${rowCount}`;
+  byId('canvasLabel').textContent = `${NEEDLES} naalden × ${rowCount} rijen`;
+  byId('rowInfo').textContent = rowCount;
+  byId('codeRowsLabel').textContent = `${rowCount} rijen`;
+  rowsInput.value = rowCount;
+}
+
+function renderGrid() {
+  canvas.width = NEEDLES * CELL;
+  canvas.height = rowCount * CELL;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let y = 0; y < rowCount; y++) {
+    for (let x = 0; x < NEEDLES; x++) {
+      ctx.fillStyle = grid[y][x] === 2 ? '#e8484d' : '#ffffff';
+      ctx.fillRect(x * CELL, y * CELL, CELL, CELL);
+    }
+  }
+  ctx.beginPath();
+  ctx.strokeStyle = '#dce2e9';
+  ctx.lineWidth = 0.65;
+  for (let x = 0; x <= NEEDLES; x++) {
+    ctx.moveTo(x * CELL + 0.5, 0);
+    ctx.lineTo(x * CELL + 0.5, canvas.height);
+  }
+  for (let y = 0; y <= rowCount; y++) {
+    ctx.moveTo(0, y * CELL + 0.5);
+    ctx.lineTo(canvas.width, y * CELL + 0.5);
+  }
+  ctx.stroke();
+}
+
+function getCode() {
+  const dataRows = grid.slice().reverse().map(row => `  "${row.slice().reverse().join('')}"`);
+  return `const int PATTERN_ROWS = ${rowCount};\n\nconst char PATTERN[PATTERN_ROWS][NEEDLES_PER_REV + 1] PROGMEM =\n{\n${dataRows.join(',\n')}\n};`;
+}
+
+function updateCode() {
+  byId('codeOutput').textContent = getCode();
+}
+
+function refresh() {
+  updateLabels();
+  renderGrid();
+  updateCode();
+}
+
+function setRows(n) {
+  if (!Number.isInteger(n) || n < MIN_ROWS || n > MAX_ROWS) {
+    notify(`Geef een geheel aantal rijen tussen ${MIN_ROWS} en ${MAX_ROWS} op.`, 'error');
+    rowsInput.value = rowCount;
+    return;
+  }
+  if (n === rowCount) return;
+  if (sourceImage) {
+    rowCount = n;
+    grid = imageToGrid(sourceImage);
+    notify(`Afbeelding opnieuw omgezet naar ${NEEDLES} × ${rowCount} steken.`, 'success');
+  } else {
+    // Nieuwe lege rijen bovenaan, behoud de bestaande onderste patroonrijen.
+    const old = grid;
+    const oldCount = rowCount;
+    grid = Array.from({ length: n }, (_, y) => {
+      const oldY = y - (n - oldCount);
+      return oldY >= 0 && oldY < oldCount ? old[oldY].slice() : Array(NEEDLES).fill(1);
+    });
+    rowCount = n;
+    notify(`Aantal rijen: ${rowCount}. Bestaande onderste patroonrijen behouden.`, 'success');
+  }
+  refresh();
+}
+
+function selectColor(n) {
+  paintColor = n;
+  byId('whiteTool').classList.toggle('selected', n === 1);
+  byId('redTool').classList.toggle('selected', n === 2);
+  byId('whiteTool').setAttribute('aria-pressed', String(n === 1));
+  byId('redTool').setAttribute('aria-pressed', String(n === 2));
+}
+
+function atPointer(e) {
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.floor((e.clientX - rect.left) / rect.width * NEEDLES);
+  const y = Math.floor((e.clientY - rect.top) / rect.height * rowCount);
+  if (x < 0 || x >= NEEDLES || y < 0 || y >= rowCount) return null;
+  return {x, y};
+}
+
+function paintAt(e) {
+  const point = atPointer(e);
+  if (!point) return;
+  const {x, y} = point;
+  byId('cursorStatus').textContent = `Naald ${NEEDLES - x} · Rij ${rowCount - y} (Arduino-volgorde)`;
+  if (!pointerDown || grid[y][x] === paintColor) return;
+  sourceImage = null;
+  grid[y][x] = paintColor;
+  // Enkel één vakje bijwerken voor vloeiend tekenen.
+  ctx.fillStyle = paintColor === 2 ? '#e8484d' : '#ffffff';
+  ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 1, CELL - 1);
+  updateCode();
+}
+
+canvas.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  pointerDown = true;
+  canvas.setPointerCapture(e.pointerId);
+  paintAt(e);
+});
+canvas.addEventListener('pointermove', paintAt);
+canvas.addEventListener('pointerup', () => { pointerDown = false; });
+canvas.addEventListener('pointercancel', () => { pointerDown = false; });
+canvas.addEventListener('lostpointercapture', () => { pointerDown = false; });
+
+function imageToGrid(img) {
+  const tmp = document.createElement('canvas');
+  tmp.width = NEEDLES;
+  tmp.height = rowCount;
+  const c = tmp.getContext('2d', { willReadFrequently: true });
+  c.fillStyle = '#ffffff';
+  c.fillRect(0, 0, NEEDLES, rowCount);
+  // Proporties behouden en extra ruimte wit laten, dus geen vervormde foto.
+  const scale = Math.min(NEEDLES / img.naturalWidth, rowCount / img.naturalHeight);
+  const w = img.naturalWidth * scale;
+  const h = img.naturalHeight * scale;
+  c.drawImage(img, (NEEDLES - w) / 2, (rowCount - h) / 2, w, h);
+  const pixels = c.getImageData(0, 0, NEEDLES, rowCount).data;
+  const out = newGrid(rowCount);
+  for (let y = 0; y < rowCount; y++) {
+    for (let x = 0; x < NEEDLES; x++) {
+      const i = (y * NEEDLES + x) * 4;
+      const r = pixels[i], g = pixels[i+1], b = pixels[i+2];
+      const brightness = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      // Alle donkere/gekleurde pixels worden kleur 2; lichte pixels kleur 1.
+      out[y][x] = brightness < 195 ? 2 : 1;
+    }
+  }
+  return out;
+}
+
+async function uploadImage(file) {
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    notify('Selecteer een afbeelding zoals PNG of JPG.', 'error');
+    return;
+  }
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  try {
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = () => reject(new Error('Kan afbeelding niet openen.'));
+      img.src = url;
+    });
+    sourceImage = img;
+    sourceImageName = file.name;
+    grid = imageToGrid(img);
+    refresh();
+    notify(`Afbeelding “${sourceImageName}” omgezet naar ${NEEDLES} × ${rowCount} steken.`, 'success');
+  } catch(err) { notify(err.message, 'error'); }
+  finally { URL.revokeObjectURL(url); }
+}
+
+function importPattern(text, filename) {
+  const match = text.match(/(?:const\s+)?(?:int|uint16_t)\s+PATTERN_ROWS\s*=\s*(\d+)\s*;/);
+  const block = text.match(/\bPATTERN\s*\[[^\]]+\]\s*\[[^\]]+\]\s*PROGMEM\s*=\s*\{([\s\S]*?)\}\s*;/);
+  if (!match || !block) throw new Error('Geen geldig Arduino PATTERN-blok gevonden.');
+  const n = Number(match[1]);
+  const exportedRows = [...block[1].matchAll(/"([12]+)"/g)].map(m => m[1]);
+  if (n < MIN_ROWS || n > MAX_ROWS || exportedRows.length !== n || exportedRows.some(r => r.length !== NEEDLES)) {
+    throw new Error(`In dit bestand moeten exact PATTERN_ROWS rijen met elk ${NEEDLES} tekens (1 of 2) staan.`);
+  }
+  sourceImage = null;
+  rowCount = n;
+  grid = exportedRows.reverse().map(row => row.split('').reverse().map(Number));
+  refresh();
+  notify(`“${filename}” geïmporteerd: ${NEEDLES} naalden × ${rowCount} rijen.`, 'success');
+}
+
+function downloadFile(name, text) {
+  const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+byId('whiteTool').addEventListener('click', () => selectColor(1));
+byId('redTool').addEventListener('click', () => selectColor(2));
+byId('minusRow').addEventListener('click', () => setRows(rowCount - 1));
+byId('plusRow').addEventListener('click', () => setRows(rowCount + 1));
+rowsInput.addEventListener('change', () => setRows(Number(rowsInput.value)));
+rowsInput.addEventListener('keydown', e => { if (e.key === 'Enter') rowsInput.blur(); });
+byId('clearButton').addEventListener('click', () => {
+  if (!confirm('Wil je de volledige tekening wissen?')) return;
+  sourceImage = null;
+  grid = newGrid(rowCount);
+  refresh();
+  notify('Tekening gewist.', 'success');
+});
+byId('uploadImageButton').addEventListener('click', () => byId('imageInput').click());
+byId('uploadPatternButton').addEventListener('click', () => byId('patternInput').click());
+byId('imageInput').addEventListener('change', async e => {
+  await uploadImage(e.target.files[0]);
+  e.target.value = '';
+});
+byId('patternInput').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try { importPattern(await file.text(), file.name); }
+  catch(err) { notify(err.message, 'error'); }
+  e.target.value = '';
+});
+byId('copyCodeButton').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(getCode());
+    notify('Arduino-code gekopieerd. Plak over je bestaande PATTERN_ROWS + PATTERN-blok.', 'success');
+  } catch(err) {
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(byId('codeOutput'));
+    selection.removeAllRanges(); selection.addRange(range);
+    notify('Selecteer de gemarkeerde code en kopieer met Ctrl+C.', 'error');
+  }
+});
+byId('downloadButton').addEventListener('click', () => {
+  downloadFile(`StitchLab_${NEEDLES}x${rowCount}.h`, `// StitchLab patroon: ${NEEDLES} naalden x ${rowCount} rijen\n// Vereist const int NEEDLES_PER_REV = ${NEEDLES}; en #include <avr/pgmspace.h>\n#pragma once\n\n${getCode()}\n`);
+  notify(`.h-bestand geëxporteerd voor ${rowCount} rijen.`, 'success');
+});
+
+refresh();
+
+</script>
+</body>
+</html>
