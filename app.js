@@ -1,275 +1,267 @@
 'use strict';
 
-// Breimachine-instellingen. Bij een andere machine pas je deze twee waarden aan.
-const NEEDLES_PER_REV = 46;
-const PATTERN_ROWS = 40;
-const TOTAL_STITCHES = NEEDLES_PER_REV * PATTERN_ROWS;
-const STORAGE_KEY = 'stitchlab-pattern-v1';
-const RED = 2;
-const WHITE = 1;
+// StitchLab — de visuele matrix wordt van boven naar beneden getekend.
+// Arduino-output is juist andersom: onderaan eerst en elke rij rechts -> links.
+const NEEDLES = 46;
+const MIN_ROWS = 1;
+const MAX_ROWS = 200;
+const CELL = 20;
 
-// matrix[0] = bovenste rij op het scherm, matrix[39] = onderste rij.
-// Het Arduino-patroon leest juist van onder naar boven en van rechts naar links.
-let matrix = createExample();
-let color = RED;
-let gridVisible = true;
-let drawing = false;
-let changedDuringStroke = false;
-let undoStack = [];
-let redoStack = [];
-let toastTimeout;
+let rowCount = 40;
+let grid = newGrid(rowCount);
+let paintColor = 2;
+let pointerDown = false;
+let sourceImage = null;
+let sourceImageName = '';
 
-const $ = (id) => document.getElementById(id);
-const canvas = $('patternCanvas');
-const ctx = canvas.getContext('2d', { alpha: false });
-const CELL = 20; // canvas 920x800 -> precies 46 kolommen bij 40 rijen
+const byId = id => document.getElementById(id);
+const canvas = byId('patternCanvas');
+const ctx = canvas.getContext('2d', { willReadFrequently: false });
+const rowsInput = byId('rowsInput');
 
-function blank() {
-  return Array.from({ length: PATTERN_ROWS }, () => Array(NEEDLES_PER_REV).fill(WHITE));
+function newGrid(rows) {
+  return Array.from({ length: rows }, () => Array(NEEDLES).fill(1));
 }
 
-function createExample() {
-  const arr = blank();
-  // Demonstratie: een klein, symmetrisch hart. Verwijderbaar met 'Raster leegmaken'.
-  for (let y = 0; y < PATTERN_ROWS; y++) {
-    for (let x = 0; x < NEEDLES_PER_REV; x++) {
-      const X = (x - 22.5) / 14;
-      const Y = (17.5 - y) / 10.5;
-      const shape = Math.pow(X * X + Y * Y - 1, 3) - X * X * Math.pow(Y, 3);
-      if (shape <= 0) arr[y][x] = RED;
-    }
-  }
-  return arr;
+function notify(message, kind = '') {
+  const status = byId('statusMessage');
+  status.textContent = message;
+  status.className = 'status' + (kind ? ' ' + kind : '');
 }
 
-function clone(m) { return m.map(row => [...row]); }
-function recordUndo() {
-  undoStack.push(clone(matrix));
-  if (undoStack.length > 40) undoStack.shift();
-  redoStack = [];
-}
-function restoreSaved() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (saved && isValidMatrix(saved.matrix)) matrix = saved.matrix;
-  } catch (_) { /* In private modus kan opslag ontbreken. */ }
-}
-function saveLocal() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({matrix})); } catch (_) {}
-  $('editStatus').textContent = '• lokaal bewaard';
-}
-function isValidMatrix(m) {
-  return Array.isArray(m) && m.length === PATTERN_ROWS &&
-    m.every(row => Array.isArray(row) && row.length === NEEDLES_PER_REV && row.every(v => v === WHITE || v === RED));
+function updateLabels() {
+  byId('gridDimensions').textContent = `${NEEDLES} × ${rowCount}`;
+  byId('canvasLabel').textContent = `${NEEDLES} naalden × ${rowCount} rijen`;
+  byId('rowInfo').textContent = rowCount;
+  byId('codeRowsLabel').textContent = `${rowCount} rijen`;
+  rowsInput.value = rowCount;
 }
 
-function draw() {
-  const w = canvas.width;
-  const h = canvas.height;
+function renderGrid() {
+  canvas.width = NEEDLES * CELL;
+  canvas.height = rowCount * CELL;
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = '#d9434c';
-  for (let y = 0; y < PATTERN_ROWS; y++) {
-    for (let x = 0; x < NEEDLES_PER_REV; x++) {
-      if (matrix[y][x] === RED) ctx.fillRect(x * CELL, y * CELL, CELL, CELL);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let y = 0; y < rowCount; y++) {
+    for (let x = 0; x < NEEDLES; x++) {
+      ctx.fillStyle = grid[y][x] === 2 ? '#e8484d' : '#ffffff';
+      ctx.fillRect(x * CELL, y * CELL, CELL, CELL);
     }
   }
-  if (gridVisible) {
-    // Crisp lijnen; iedere vijfde rij/kolom net iets duidelijker.
-    for (let x = 0; x <= NEEDLES_PER_REV; x++) {
-      ctx.strokeStyle = x % 5 === 0 ? 'rgba(80,102,125,.34)' : 'rgba(89,104,121,.17)';
-      ctx.lineWidth = x % 5 === 0 ? 1.3 : 0.7;
-      ctx.beginPath();ctx.moveTo(x * CELL + .5, 0);ctx.lineTo(x * CELL + .5, h);ctx.stroke();
-    }
-    for (let y = 0; y <= PATTERN_ROWS; y++) {
-      ctx.strokeStyle = y % 5 === 0 ? 'rgba(80,102,125,.34)' : 'rgba(89,104,121,.17)';
-      ctx.lineWidth = y % 5 === 0 ? 1.3 : 0.7;
-      ctx.beginPath();ctx.moveTo(0, y * CELL + .5);ctx.lineTo(w, y * CELL + .5);ctx.stroke();
-    }
+  ctx.beginPath();
+  ctx.strokeStyle = '#dce2e9';
+  ctx.lineWidth = 0.65;
+  for (let x = 0; x <= NEEDLES; x++) {
+    ctx.moveTo(x * CELL + 0.5, 0);
+    ctx.lineTo(x * CELL + 0.5, canvas.height);
   }
+  for (let y = 0; y <= rowCount; y++) {
+    ctx.moveTo(0, y * CELL + 0.5);
+    ctx.lineTo(canvas.width, y * CELL + 0.5);
+  }
+  ctx.stroke();
 }
 
-function toPatternRows(m = matrix) {
-  // Vereiste codeconventie: onderste beeldrij eerst; elke beeldrij rechts-naar-links.
-  return [...m].reverse().map(row => [...row].reverse().join(''));
+function getCode() {
+  const dataRows = grid.slice().reverse().map(row => `  "${row.slice().reverse().join('')}"`);
+  return `const int PATTERN_ROWS = ${rowCount};\n\nconst char PATTERN[PATTERN_ROWS][NEEDLES_PER_REV + 1] PROGMEM =\n{\n${dataRows.join(',\n')}\n};`;
 }
-function toArduinoCode() {
-  const lines = toPatternRows();
-  return [
-    '// StitchLab - automatisch gegenereerd breipatroon',
-    '// Vereist: NEEDLES_PER_REV = 46 moet eerder in de Arduino-code staan.',
-    '#pragma once',
-    `const int PATTERN_ROWS = ${PATTERN_ROWS};`,
-    'const char PATTERN[PATTERN_ROWS][NEEDLES_PER_REV + 1] PROGMEM = {',
-    ...lines.map((row, i) => `  "${row}"${i === lines.length - 1 ? '' : ','}`),
-    '};',
-    ''
-  ].join('\n');
+
+function updateCode() {
+  byId('codeOutput').textContent = getCode();
 }
+
 function refresh() {
-  draw();
-  let red = 0;
-  for (const row of matrix) for (const v of row) if (v === RED) red++;
-  $('redCount').textContent = red.toLocaleString('nl-BE');
-  $('whiteCount').textContent = (TOTAL_STITCHES - red).toLocaleString('nl-BE');
-  $('ratioRed').style.width = `${red / TOTAL_STITCHES * 100}%`;
-  $('totalCount').textContent = `${TOTAL_STITCHES.toLocaleString('nl-BE')} steken in totaal · ${Math.round(red / TOTAL_STITCHES * 100)}% rood`;
-  const rows = toPatternRows();
-  $('codePreview').textContent =
-    `const int PATTERN_ROWS = ${PATTERN_ROWS};\n` +
-    `const char PATTERN[PATTERN_ROWS][NEEDLES_PER_REV + 1] PROGMEM = {\n` +
-    `  "${rows[0]}",\n  "${rows[1]}",\n  "${rows[2]}",\n  // ... nog 37 rijen\n};`;
-  $('undoBtn').disabled = !undoStack.length;
-  $('redoBtn').disabled = !redoStack.length;
-  saveLocal();
+  updateLabels();
+  renderGrid();
+  updateCode();
 }
-function coordinates(e) {
-  const rect = canvas.getBoundingClientRect();
-  const x = Math.floor((e.clientX - rect.left) / rect.width * NEEDLES_PER_REV);
-  const y = Math.floor((e.clientY - rect.top) / rect.height * PATTERN_ROWS);
-  if (x < 0 || y < 0 || x >= NEEDLES_PER_REV || y >= PATTERN_ROWS) return null;
-  return {x, y};
-}
-function paint(e) {
-  const p = coordinates(e);
-  if (!p) return;
-  if (matrix[p.y][p.x] !== color) {
-    matrix[p.y][p.x] = color;
-    changedDuringStroke = true;
-    refresh();
+
+function setRows(n) {
+  if (!Number.isInteger(n) || n < MIN_ROWS || n > MAX_ROWS) {
+    notify(`Geef een geheel aantal rijen tussen ${MIN_ROWS} en ${MAX_ROWS} op.`, 'error');
+    rowsInput.value = rowCount;
+    return;
   }
-  $('cursorStatus').textContent = `Kolom ${p.x + 1} · Rij ${p.y + 1} (vanaf boven)`;
-}
-canvas.addEventListener('pointerdown', (e) => {
-  if (e.button !== 0 && e.pointerType === 'mouse') return;
-  drawing = true;
-  changedDuringStroke = false;
-  recordUndo();
-  canvas.setPointerCapture(e.pointerId);
-  paint(e);
-  e.preventDefault();
-});
-canvas.addEventListener('pointermove', e => {
-  if (drawing) paint(e);
-  else {
-    const p = coordinates(e);
-    if (p) $('cursorStatus').textContent = `Kolom ${p.x + 1} · Rij ${p.y + 1} (vanaf boven)`;
+  if (n === rowCount) return;
+  if (sourceImage) {
+    rowCount = n;
+    grid = imageToGrid(sourceImage);
+    notify(`Afbeelding opnieuw omgezet naar ${NEEDLES} × ${rowCount} steken.`, 'success');
+  } else {
+    // Nieuwe lege rijen bovenaan, behoud de bestaande onderste patroonrijen.
+    const old = grid;
+    const oldCount = rowCount;
+    grid = Array.from({ length: n }, (_, y) => {
+      const oldY = y - (n - oldCount);
+      return oldY >= 0 && oldY < oldCount ? old[oldY].slice() : Array(NEEDLES).fill(1);
+    });
+    rowCount = n;
+    notify(`Aantal rijen: ${rowCount}. Bestaande onderste patroonrijen behouden.`, 'success');
   }
-});
-function finishStroke() {
-  if (!drawing) return;
-  drawing = false;
-  if (!changedDuringStroke) undoStack.pop();
   refresh();
 }
-canvas.addEventListener('pointerup', finishStroke);
-canvas.addEventListener('pointercancel', finishStroke);
-canvas.addEventListener('pointerleave', () => { if (!drawing) $('cursorStatus').textContent = '46 × 40 steken'; });
 
-function setColor(v) {
-  color = v;
-  $('whiteTool').classList.toggle('active', v === WHITE);
-  $('redTool').classList.toggle('active', v === RED);
-  $('whiteTool').setAttribute('aria-pressed', String(v === WHITE));
-  $('redTool').setAttribute('aria-pressed', String(v === RED));
+function selectColor(n) {
+  paintColor = n;
+  byId('whiteTool').classList.toggle('selected', n === 1);
+  byId('redTool').classList.toggle('selected', n === 2);
+  byId('whiteTool').setAttribute('aria-pressed', String(n === 1));
+  byId('redTool').setAttribute('aria-pressed', String(n === 2));
 }
-$('whiteTool').onclick = () => setColor(WHITE);
-$('redTool').onclick = () => setColor(RED);
-$('showGrid').onchange = (e) => {gridVisible = e.target.checked;draw();};
 
-function replaceMatrix(m, message) {recordUndo();matrix = m;refresh();notify(message);}
-$('clearBtn').onclick = () => replaceMatrix(blank(), 'Raster leeggemaakt');
-$('mirrorBtn').onclick = () => replaceMatrix(matrix.map(row => [...row].reverse()), 'Patroon horizontaal gespiegeld');
-$('exampleBtn').onclick = () => replaceMatrix(createExample(), 'Voorbeeldpatroon geladen');
-$('undoBtn').onclick = () => {
-  if (!undoStack.length) return;
-  redoStack.push(clone(matrix));
-  matrix = undoStack.pop();refresh();
-};
-$('redoBtn').onclick = () => {
-  if (!redoStack.length) return;
-  undoStack.push(clone(matrix));
-  matrix = redoStack.pop();refresh();
-};
+function atPointer(e) {
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.floor((e.clientX - rect.left) / rect.width * NEEDLES);
+  const y = Math.floor((e.clientY - rect.top) / rect.height * rowCount);
+  if (x < 0 || x >= NEEDLES || y < 0 || y >= rowCount) return null;
+  return {x, y};
+}
 
-document.addEventListener('keydown', e => {
-  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-    e.preventDefault();
-    (e.shiftKey ? $('redoBtn') : $('undoBtn')).click();
-  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-    e.preventDefault();$('redoBtn').click();
-  } else if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key === '1') setColor(WHITE);
-  else if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key === '2') setColor(RED);
+function paintAt(e) {
+  const point = atPointer(e);
+  if (!point) return;
+  const {x, y} = point;
+  byId('cursorStatus').textContent = `Naald ${NEEDLES - x} · Rij ${rowCount - y} (Arduino-volgorde)`;
+  if (!pointerDown || grid[y][x] === paintColor) return;
+  sourceImage = null;
+  grid[y][x] = paintColor;
+  // Enkel één vakje bijwerken voor vloeiend tekenen.
+  ctx.fillStyle = paintColor === 2 ? '#e8484d' : '#ffffff';
+  ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 1, CELL - 1);
+  updateCode();
+}
+
+canvas.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  pointerDown = true;
+  canvas.setPointerCapture(e.pointerId);
+  paintAt(e);
 });
+canvas.addEventListener('pointermove', paintAt);
+canvas.addEventListener('pointerup', () => { pointerDown = false; });
+canvas.addEventListener('pointercancel', () => { pointerDown = false; });
+canvas.addEventListener('lostpointercapture', () => { pointerDown = false; });
 
-function download(filename, text, type) {
-  const file = new Blob([text], {type});
+function imageToGrid(img) {
+  const tmp = document.createElement('canvas');
+  tmp.width = NEEDLES;
+  tmp.height = rowCount;
+  const c = tmp.getContext('2d', { willReadFrequently: true });
+  c.fillStyle = '#ffffff';
+  c.fillRect(0, 0, NEEDLES, rowCount);
+  // Proporties behouden en extra ruimte wit laten, dus geen vervormde foto.
+  const scale = Math.min(NEEDLES / img.naturalWidth, rowCount / img.naturalHeight);
+  const w = img.naturalWidth * scale;
+  const h = img.naturalHeight * scale;
+  c.drawImage(img, (NEEDLES - w) / 2, (rowCount - h) / 2, w, h);
+  const pixels = c.getImageData(0, 0, NEEDLES, rowCount).data;
+  const out = newGrid(rowCount);
+  for (let y = 0; y < rowCount; y++) {
+    for (let x = 0; x < NEEDLES; x++) {
+      const i = (y * NEEDLES + x) * 4;
+      const r = pixels[i], g = pixels[i+1], b = pixels[i+2];
+      const brightness = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      // Alle donkere/gekleurde pixels worden kleur 2; lichte pixels kleur 1.
+      out[y][x] = brightness < 195 ? 2 : 1;
+    }
+  }
+  return out;
+}
+
+async function uploadImage(file) {
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    notify('Selecteer een afbeelding zoals PNG of JPG.', 'error');
+    return;
+  }
   const url = URL.createObjectURL(file);
-  const anchor = document.createElement('a');
-  anchor.href = url;anchor.download = filename;
-  document.body.appendChild(anchor);anchor.click();anchor.remove();
+  const img = new Image();
+  try {
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = () => reject(new Error('Kan afbeelding niet openen.'));
+      img.src = url;
+    });
+    sourceImage = img;
+    sourceImageName = file.name;
+    grid = imageToGrid(img);
+    refresh();
+    notify(`Afbeelding “${sourceImageName}” omgezet naar ${NEEDLES} × ${rowCount} steken.`, 'success');
+  } catch(err) { notify(err.message, 'error'); }
+  finally { URL.revokeObjectURL(url); }
+}
+
+function importPattern(text, filename) {
+  const match = text.match(/(?:const\s+)?(?:int|uint16_t)\s+PATTERN_ROWS\s*=\s*(\d+)\s*;/);
+  const block = text.match(/\bPATTERN\s*\[[^\]]+\]\s*\[[^\]]+\]\s*PROGMEM\s*=\s*\{([\s\S]*?)\}\s*;/);
+  if (!match || !block) throw new Error('Geen geldig Arduino PATTERN-blok gevonden.');
+  const n = Number(match[1]);
+  const exportedRows = [...block[1].matchAll(/"([12]+)"/g)].map(m => m[1]);
+  if (n < MIN_ROWS || n > MAX_ROWS || exportedRows.length !== n || exportedRows.some(r => r.length !== NEEDLES)) {
+    throw new Error(`In dit bestand moeten exact PATTERN_ROWS rijen met elk ${NEEDLES} tekens (1 of 2) staan.`);
+  }
+  sourceImage = null;
+  rowCount = n;
+  grid = exportedRows.reverse().map(row => row.split('').reverse().map(Number));
+  refresh();
+  notify(`“${filename}” geïmporteerd: ${NEEDLES} naalden × ${rowCount} rijen.`, 'success');
+}
+
+function downloadFile(name, text) {
+  const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-$('downloadBtn').onclick = () => {
-  download('pattern.h', toArduinoCode(), 'text/plain;charset=utf-8');
-  notify('Arduino-code als pattern.h gedownload');
-};
-$('saveBtn').onclick = () => {
-  download('stitchlab-project.json', JSON.stringify({format:'stitchlab-v1', needles: NEEDLES_PER_REV, rows: PATTERN_ROWS, matrix}, null, 2), 'application/json');
-  notify('Projectbestand opgeslagen');
-};
-$('copyBtn').onclick = async () => {
-  try { await navigator.clipboard.writeText(toArduinoCode()); notify('PATTERN gekopieerd naar klembord'); }
-  catch (_) { notify('Kopiëren niet mogelijk; download pattern.h'); }
-};
-$('imageBtn').onclick = () => $('imageInput').click();
-$('jsonBtn').onclick = () => $('jsonInput').click();
-$('jsonInput').onchange = async (e) => {
-  const file = e.target.files?.[0]; if (!file) return;
-  try {
-    const obj = JSON.parse(await file.text());
-    if (obj.format !== 'stitchlab-v1' || !isValidMatrix(obj.matrix)) throw new Error('Verkeerd bestandsformaat');
-    replaceMatrix(obj.matrix, 'Projectbestand geladen');
-  } catch(err) {notify(`Ongeldig projectbestand: ${err.message}`);}
+
+byId('whiteTool').addEventListener('click', () => selectColor(1));
+byId('redTool').addEventListener('click', () => selectColor(2));
+byId('minusRow').addEventListener('click', () => setRows(rowCount - 1));
+byId('plusRow').addEventListener('click', () => setRows(rowCount + 1));
+rowsInput.addEventListener('change', () => setRows(Number(rowsInput.value)));
+rowsInput.addEventListener('keydown', e => { if (e.key === 'Enter') rowsInput.blur(); });
+byId('clearButton').addEventListener('click', () => {
+  if (!confirm('Wil je de volledige tekening wissen?')) return;
+  sourceImage = null;
+  grid = newGrid(rowCount);
+  refresh();
+  notify('Tekening gewist.', 'success');
+});
+byId('uploadImageButton').addEventListener('click', () => byId('imageInput').click());
+byId('uploadPatternButton').addEventListener('click', () => byId('patternInput').click());
+byId('imageInput').addEventListener('change', async e => {
+  await uploadImage(e.target.files[0]);
   e.target.value = '';
-};
-$('imageInput').onchange = async (e) => {
-  const file = e.target.files?.[0]; if (!file) return;
-  try {
-    const bmp = await createImageBitmap(file);
-    // Gebruik de gemiddelde kleur per steekcel. Behoud de beeldverhouding met witte marges.
-    const SCALE = 8;
-    const offscreen = document.createElement('canvas');
-    offscreen.width = NEEDLES_PER_REV * SCALE;
-    offscreen.height = PATTERN_ROWS * SCALE;
-    const g = offscreen.getContext('2d', {willReadFrequently: true});
-    g.fillStyle = '#fff';g.fillRect(0,0,offscreen.width,offscreen.height);
-    const scale = Math.min(offscreen.width / bmp.width, offscreen.height / bmp.height);
-    const width = bmp.width * scale, height = bmp.height * scale;
-    g.drawImage(bmp, (offscreen.width - width)/2, (offscreen.height - height)/2, width, height);
-    const pixels = g.getImageData(0,0,offscreen.width,offscreen.height).data;
-    const m = blank();
-    for (let y=0;y<PATTERN_ROWS;y++) for (let x=0;x<NEEDLES_PER_REV;x++) {
-      let sum = 0;
-      for(let dy=0;dy<SCALE;dy++) for(let dx=0;dx<SCALE;dx++) {
-        const i=((y*SCALE+dy)*offscreen.width+x*SCALE+dx)*4;
-        sum += .2126*pixels[i] + .7152*pixels[i+1] + .0722*pixels[i+2];
-      }
-      // Pixels met gemiddelde helderheid < 205 worden rood.
-      m[y][x] = sum/(SCALE*SCALE)<205 ? RED : WHITE;
-    }
-    bmp.close();
-    replaceMatrix(m, 'Afbeelding omgezet naar 46 × 40 steken');
-  } catch (err) { notify('Afbeelding kon niet worden geopend'); }
+});
+byId('patternInput').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try { importPattern(await file.text(), file.name); }
+  catch(err) { notify(err.message, 'error'); }
   e.target.value = '';
-};
-function notify(message) {
-  const toast = $('toast');
-  toast.textContent = message;
-  toast.classList.add('show');
-  clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => toast.classList.remove('show'), 2800);
-}
-restoreSaved();
+});
+byId('copyCodeButton').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(getCode());
+    notify('Arduino-code gekopieerd. Plak over je bestaande PATTERN_ROWS + PATTERN-blok.', 'success');
+  } catch(err) {
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(byId('codeOutput'));
+    selection.removeAllRanges(); selection.addRange(range);
+    notify('Selecteer de gemarkeerde code en kopieer met Ctrl+C.', 'error');
+  }
+});
+byId('downloadButton').addEventListener('click', () => {
+  downloadFile(`StitchLab_${NEEDLES}x${rowCount}.h`, `// StitchLab patroon: ${NEEDLES} naalden x ${rowCount} rijen\n// Vereist const int NEEDLES_PER_REV = ${NEEDLES}; en #include <avr/pgmspace.h>\n#pragma once\n\n${getCode()}\n`);
+  notify(`.h-bestand geëxporteerd voor ${rowCount} rijen.`, 'success');
+});
+
 refresh();
